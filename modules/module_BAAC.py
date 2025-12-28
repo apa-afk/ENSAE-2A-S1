@@ -102,34 +102,6 @@ def add_data(df) :
         size=N,
         p=csp_probabilities
     )
-
     
-    #FRENCH REGION
-    regions = [
-        "Île-de-France",
-        "Nord",
-        "Ouest",
-        "Est",
-        "Sud-Ouest",
-        "Sud-Est",
-        "Centre-Massif"
-    ]
-
-    # Approximate population + traffic exposure
-    region_probabilities = [
-        0.18,  # IDF
-        0.17,
-        0.15,
-        0.14,
-        0.13,
-        0.15,
-        0.08
-    ]
-
-    df["region"] = np.random.choice(
-        regions,
-        size=N,
-        p=region_probabilities
-    )
 
     return df
