@@ -21,14 +21,16 @@ def hrmn_to_hour(val):
 
 
 def dynamiques_temporelles(list_df):
-
     nb_annees = len(list_df)
-    occurences = [ len(list_df[i]['Num_Acc']) for i in range(nb_annees)] #nombre de personnes impliquées dans des accidents par an
+    occurences = [ len(list_df[i]) for i in range(nb_annees)] #nombre d'accidents par an
     occurences_graves = [len(list_df[i].loc[list_df[i]['grav'] == 4]) for i in range(nb_annees)]
     grav_moy = [list_df[i]['grav'].mean() for i in range(nb_annees)]
     sexe_moy = [list_df[i]['sexe'].mean() for i in range(nb_annees)]
     
     return occurences, occurences_graves, grav_moy, sexe_moy
+
+
+
 
 def normalize_coordinates(df, lat_col='lat', long_col='long'):
     def normalize_lat(val):
