@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import re
 import io
-from functools import reduce
-
 
 
 
@@ -17,28 +15,73 @@ def get_resources(api_url: str) -> pd.DataFrame:
 
 
 
-def select_baac_tables(BAAC_resources: pd.DataFrame) -> pd.DataFrame:
-    df = BAAC_resources.copy()
+def select_baac_tables(BAAC_resources: pd.DataFrame) -> pd.DataFrame: 
+    """
+    From BAAC_resources[['description','url']], keep only yearly BAAC tables whose URL ends with:
+      - carcteristiques-YYYY.csv
+      - caract-YYYY.csv
+      - usagers_YYYY.csv
+      - vehicules_YYYY.csv
+      - lieux_YYYY.csv
+      - caracteristiques_YYYY.csv
+
+    Returns a DataFrame with columns: description, url, table, year
+    """
+    df = BAAC_resources[["description", "url"]].copy()
+    df["url"] = df["url"].astype(str)
 
     pattern = re.compile(
-        r"/(carcteristiques|caract|caracteristiques|lieux|vehicules|usagers)-(202[0-4])\.csv$",
-        re.IGNORECASE
+        r"(?:caract|caracteristiques|carcteristiques|lieux|vehicules|usagers)[-_]\d{4}\.csv$",
+        flags=re.IGNORECASE
     )
 
-    m = df["url"].astype(str).str.extract(pattern)
-    out = df[m[0].notna()].copy()
+    out = df[df["url"].str.contains(pattern, na=False)].copy()
 
-    out["table"] = m.loc[m[0].notna(), 0].str.lower()
-    out["year"] = m.loc[m[0].notna(), 1].astype(int)
+    # Extract table name + year
+    def parse(url: str):
+        m = re.search(r"(carcteristiques|caract|caracteristiques|usagers|vehicules|lieux)[-_](\d{4})\.csv$", url, re.I)
+        if not m:
+            return pd.Series([None, None])
+        table, year = m.group(1).lower(), int(m.group(2))
+        # normalize table name
+        if table in ("carcteristiques", "caracteristiques", "caract"):
+            table = "caracteristiques"
+        return pd.Series([table, year])
 
-    out = out[(out["year"] >= 2020) & (out["year"] <= 2024)]
+    out[["table", "year"]] = out["url"].apply(parse)
 
-    # normalize table names
-    out["table"] = out["table"].replace(
-        {"carcteristiques": "caracteristiques", "caract": "caracteristiques"}
+    
+    return out.reset_index(drop=True)
+
+
+
+def _read_baac_csv(url: str) -> pd.DataFrame:
+    # encoding fallback
+    try:
+        df = pd.read_csv(url, sep=None, engine="python", dtype=str, encoding="utf-8")
+    except UnicodeDecodeError:
+        df = pd.read_csv(url, sep=None, engine="python", dtype=str, encoding="latin1")
+
+    # packed 1-col repair
+    if df.shape[1] == 1 and df.iloc[:, 0].astype(str).str.contains(",").mean() > 0.3:
+        text = df.columns[0] + "\n" + "\n".join(df.iloc[:, 0].astype(str).tolist())
+        df = pd.read_csv(io.StringIO(text), sep=",", engine="python", dtype=str)
+
+    # normalize column names
+    df.columns = (
+        pd.Index(df.columns)
+        .astype(str)
+        .str.strip()
+        .str.replace("\ufeff", "", regex=False)  # BOM sometimes
     )
 
-    return out[["description", "url", "table", "year"]].reset_index(drop=True)
+    # force rename common variants -> Num_Acc
+    for c in df.columns:
+        if c.replace(" ", "").lower() in {"num_acc", "numacc", "num_accident", "numaccident"}:
+            df = df.rename(columns={c: "Num_Acc"})
+            break
+
+    return df
 
 
 
@@ -61,7 +104,23 @@ def build_baac_dataframe(selected_BAAC_table: pd.DataFrame) -> pd.DataFrame:
         merged["year"] = year
         yearly.append(merged)
 
+<<<<<<< HEAD
+        if not dfs:
+            continue
+
+        year_df = dfs[0]
+        for d in dfs[1:]:
+            year_df = year_df.merge(d, on="Num_Acc", how="outer")
+
+        year_df["year"] = year
+        out.append(year_df)
+
+        print(f"{year} completed")
+
+    return pd.concat(out, ignore_index=True, sort=False) if out else pd.DataFrame()
+=======
     return pd.concat(yearly, ignore_index=True)
+>>>>>>> 42f47242b4dd5acdc91e38f767427a473d0be059
 
 
 
