@@ -285,8 +285,9 @@ def plot_correlation_circle(pca, feature_names, pc1=0, pc2=1, figsize=(8, 8)):
 
 
 
-def plot_crashes_heatmap(df) : 
 
+def plot_crashes_heatmap_cote_a_cote(df, ax=None, year=2024):
+    # Filtrer sur les coordonnées (France métropolitaine)
     df = df[
         (df['long'] >= -5.5) & (df['long'] <= 9.7) &
         (df['lat']  >= 41.0) & (df['lat']  <= 51.5)
@@ -294,13 +295,12 @@ def plot_crashes_heatmap(df) :
     
     x, y = df['long'], df['lat']
     
+    if ax is None:
+        plt.figure(figsize=(8,8))
+        ax = plt.gca()
     
-    
-    plt.scatter(x, y, s=4, c='red', alpha=0.03)
-
-
-    plt.xlabel("Longitude")
-    plt.ylabel("Latitude")
-    plt.title("Occurences des accidents routiers en 2024")
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.show()
+    ax.scatter(x, y, s=4, c='red', alpha=0.03)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_title(f"Occurrences des accidents routiers en {year}")
+    ax.set_aspect('equal', adjustable='box')

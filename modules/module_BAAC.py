@@ -89,7 +89,7 @@ def build_baac_dataframe(selected_BAAC_table: pd.DataFrame) -> pd.DataFrame:
     t = selected_BAAC_table.copy()
 
     def _load(u):
-        df = pd.read_csv(u, sep=";", encoding="latin-1")
+        df = pd.read_csv(u, sep=";")
         df.columns = df.columns.astype(str).str.strip()
         if "Accident_Id" in df.columns:
             df = df.rename(columns={"Accident_Id": "Num_Acc"})
