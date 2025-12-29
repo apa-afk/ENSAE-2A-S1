@@ -23,7 +23,7 @@ def hrmn_to_hour(val):
 def dynamiques_temporelles(list_df):
 
     nb_annees = len(list_df)
-    occurences = [ len(list_df[i]) for i in range(nb_annees)] #nombre d'accidents par an
+    occurences = [ len(list_df[i]['Num_Acc']) for i in range(nb_annees)] #nombre de personnes impliquées dans des accidents par an
     occurences_graves = [len(list_df[i].loc[list_df[i]['grav'] == 4]) for i in range(nb_annees)]
     grav_moy = [list_df[i]['grav'].mean() for i in range(nb_annees)]
     sexe_moy = [list_df[i]['sexe'].mean() for i in range(nb_annees)]
@@ -125,9 +125,29 @@ def plot_accidents_heatmap(df):
     plt.show()
 
 
-def run_regression(df):
+def plot_accidents_heatmap_cote_a_cote(df, ax=None, title=None):
+    heat = df.pivot_table(index='hour', columns='weekday', values='Num_Acc', aggfunc='count')
+    weekday_order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    heat = heat[weekday_order]
+    
+    sns.heatmap(heat, cmap='Reds', ax=ax)
+    if ax:
+        ax.set_title(title if title else 'Accidents by Hour and Weekday')
+        ax.set_xlabel('Weekday')
+        ax.set_ylabel('Hour of Day')
+    else:
+        plt.title(title if title else 'Accidents by Hour and Weekday')
+        plt.xlabel('Weekday')
+        plt.ylabel('Hour of Day')
+        plt.show()
 
-    X = df[['lum','atm','surf','vma','nb_vehicules']].dropna()
+
+
+
+
+def run_regression(df, variables):
+
+    X = df[variables].dropna()
     y = df.loc[X.index, 'nb_usagers']
     X = sm.add_constant(X)
     
