@@ -2,9 +2,7 @@ def excel_fix(df):
     # header is on row 1
     df.columns = df.iloc[1].astype(str)
 
-    # clean column names:
-    # - keep first column as-is (region)
-    # - clean years: remove * and force string
+    # clean year column names (keep first column)
     cols = df.columns.tolist()
     cols[1:] = [str(int(float(c.replace("*", "").strip()))) for c in cols[1:]]
     df.columns = cols
@@ -16,46 +14,53 @@ def excel_fix(df):
     # rename first column
     df = df.rename(columns={df.columns[0]: "region"})
 
-    # clean region names
-    df["region"] = df["region"].astype(str).str.strip()
+    # normalize region names
+    df["region"] = (
+        df["region"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .replace({
+            "PROVENCE-ALPES-COTE -D'AZUR": "PROVENCE-ALPES-CÔTE D'AZUR",
+            "AUVERGNE RHONE ALPES": "AUVERGNE-RHÔNE-ALPES",
+            "CENTRE VAL DE LOIRE": "CENTRE-VAL DE LOIRE",
+            "BOURGOGNE FRANCHE COMTE": "BOURGOGNE-FRANCHE-COMTÉ",
+            "PAYS DE LA LOIRE": "PAYS DE LA LOIRE",
+            "ILE-DE-FRANCE": "ÎLE-DE-FRANCE",
+            "NOMBRE TOTAL": "TOTAL",
+            "MONTANT TOTAL": "TOTAL",
+        })
+    )
 
-    # normalize TOTAL
-    df["region"] = df["region"].replace({
-        "NOMBRE TOTAL": "TOTAL",
-        "MONTANT TOTAL": "TOTAL"
-    })
+    # region -> INSEE reg code (same as df_conso.reg)
+    region_to_reg = {
+        "ÎLE-DE-FRANCE": 11,
+        "CENTRE-VAL DE LOIRE": 24,
+        "BOURGOGNE-FRANCHE-COMTÉ": 27,
+        "NORMANDIE": 28,
+        "HAUTS DE FRANCE": 32,
+        "GRAND EST": 44,
+        "PAYS DE LA LOIRE": 52,
+        "BRETAGNE": 53,
+        "NOUVELLE AQUITAINE": 75,
+        "OCCITANIE": 76,
+        "AUVERGNE-RHÔNE-ALPES": 84,
+        "PROVENCE-ALPES-CÔTE D'AZUR": 93,
+        "CORSE": 94,
+        "OUTRE-MER": 1,
+        "RÉSIDENTS ÉTRANGERS": 99,
+        "TOTAL": 0,
+    }
 
-    region_order = [
-        "ILE-DE-FRANCE",
-        "CENTRE VAL DE LOIRE",
-        "BOURGOGNE FRANCHE COMTE",
-        "NORMANDIE",
-        "HAUTS DE FRANCE",
-        "GRAND EST",
-        "PAYS DE LA LOIRE",
-        "BRETAGNE",
-        "NOUVELLE AQUITAINE",
-        "OCCITANIE",
-        "AUVERGNE RHONE ALPES",
-        "PROVENCE-ALPES-COTE -D'AZUR",
-        "CORSE",
-        "OUTRE-MER",
-        "RÉSIDENTS ÉTRANGERS",
-        "TOTAL",
-    ]
+    df["region_id"] = df["region"].map(region_to_reg)
 
-    region_id_map = {name: i + 1 for i, name in enumerate(region_order)}
-    df["region_id"] = df["region"].map(region_id_map)
-
-    # drop unmapped rows + force int
+    # drop unmapped rows
     df = df[df["region_id"].notna()].copy()
     df["region_id"] = df["region_id"].astype(int)
 
     # reorder columns
     cols = ["region_id", "region"] + [c for c in df.columns if c not in ["region_id", "region"]]
-    df = df[cols]
-
-    return df
+    return df[cols]
 
 
 
