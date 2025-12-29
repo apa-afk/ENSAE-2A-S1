@@ -110,6 +110,8 @@ def build_baac_dataframe(selected_BAAC_table: pd.DataFrame) -> pd.DataFrame:
         year_df["year"] = year
         out.append(year_df)
 
+        print(f"{year} completed")
+
     return pd.concat(out, ignore_index=True, sort=False) if out else pd.DataFrame()
 
 

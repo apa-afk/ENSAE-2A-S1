@@ -20,6 +20,61 @@ def hrmn_to_hour(val):
 
 
 
+def dynamiques_temporelles(list_df):
+
+    nb_annees = len(list_df)
+    occurences = [ len(list_df[i]) for i in range(nb_annees)] #nombre d'accidents par an
+    occurences_graves = [len(list_df[i].loc[list_df[i]['grav'] == 4]) for i in range(nb_annees)]
+    grav_moy = [list_df[i]['grav'].mean() for i in range(nb_annees)]
+    sexe_moy = [list_df[i]['sexe'].mean() for i in range(nb_annees)]
+    
+    return occurences, occurences_graves, grav_moy, sexe_moy
+
+def normalize_coordinates(df, lat_col='lat', long_col='long'):
+    def normalize_lat(val):
+        # Check for missing or invalid values
+        if pd.isna(val) or str(val).strip() in ['0', '000000', '']:
+            return np.nan
+        s = str(val).replace(',', '').replace(' ', '').replace('.','')
+        if len(s) < 3:
+            return np.nan
+        return float(f'{s[:2]}.{s[2:]}')  # decimal after first 2 digits
+
+    def normalize_long(val):
+        if pd.isna(val) or str(val).strip() in ['0', '000000', '']:
+            return np.nan
+        s = str(val).replace(',', '').replace(' ', '')
+        if len(s) < 2:
+            return np.nan
+        return float(f'{s[:1]}.{s[1:]}')  # decimal after first digit
+
+    df[lat_col] = df[lat_col].apply(normalize_lat)
+    df[long_col] = df[long_col].apply(normalize_long)
+
+
+    return df
+
+
+def to_int(df):
+
+    for col in df.columns:
+        s = df[col]
+
+        # Try numeric conversion, keep NaN
+        s_num = pd.to_numeric(s, errors='coerce')
+
+        # Only convert if values are integer-like
+        mask_int = s_num.notna() & (s_num % 1 == 0)
+
+        # Create a copy to avoid SettingWithCopy
+        s_out = s.copy()
+
+        # Assign ints where appropriate
+        s_out[mask_int] = s_num[mask_int].astype(int)
+
+        df[col] = s_out
+
+    return df
 
 def plot_crashes_per_month(df):
 
@@ -218,8 +273,6 @@ def plot_correlation_circle(pca, feature_names, pc1=0, pc2=1, figsize=(8, 8)):
 
 def plot_crashes_heatmap(df) : 
 
-    df['long'] = df['long'].str.replace(',', '.').astype(float)     #converts str coordinates to float
-    df['lat']  = df['lat'].str.replace(',', '.').astype(float)
     df = df[
         (df['long'] >= -5.5) & (df['long'] <= 9.7) &
         (df['lat']  >= 41.0) & (df['lat']  <= 51.5)
