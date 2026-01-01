@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
 import numpy as np
+import re
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from mpl_toolkits.mplot3d import Axes3D
 
 
-#modif
 
 
 def plot_multiple(dfs, plotting_function, titles):
@@ -41,36 +41,44 @@ def dynamiques_temporelles(list_df):
     return occurences, occurences_graves, grav_moy, sexe_moy
 
 
-def normalize_coordinates(df, lat_col='lat', long_col='long'):
 
-    def normalize_lat(val):
-        if pd.isna(val):
+def normalize_coordinates(df):
+    """Normalize lat/long values stored in mixed formats.
+
+    - Accepts strings (commas, extra chars) and ints in microdegrees.
+    - Divides by 10 repeatedly until values fall within geographic ranges.
+    - Detects and swaps lat/long if they appear swapped for metropolitan France.
+    """
+    out = df.copy()
+
+    def parse_and_scale(x, max_abs):
+        if pd.isna(x):
             return np.nan
-
-        s = str(val).strip().replace(',', '').replace(' ', '').replace('.', '')
-        if s in ['0', '000000', '0000000'] or len(s) < 4:
+        s = str(x).strip().replace(',', '.')
+        s = re.sub(r'[^0-9\.\-]', '', s)
+        try:
+            v = float(s)
+        except:
             return np.nan
-
-        return float(f'{s[:2]}.{s[2:]}')  # ex: 5051500 -> 50.51500
-
-    def normalize_long(val):
-        if pd.isna(val):
+        v = float(s)
+        # scale down by factors of 10 until value is in range or we've tried enough times
+        attempts = 0
+        while abs(v) > max_abs and attempts < 10:
+            v /= 10.0
+            attempts += 1
+        if abs(v) > max_abs:
             return np.nan
+        return v
 
-        s = str(val).strip().replace(',', '').replace(' ', '').replace('.', '')
-        if s in ['0', '000000', '0000000'] or len(s) < 4:
-            return np.nan
+    out['lat'] = out['lat'].apply(lambda x: parse_and_scale(x, 90))
+    out['long'] = out['long'].apply(lambda x: parse_and_scale(x, 180))
 
-        # gérer le signe
-        sign = -1 if s.startswith('-') else 1
-        s = s.lstrip('-')
+    # Ensure numeric dtypes
+    out['lat'] = pd.to_numeric(out['lat'], errors='coerce')
+    out['long'] = pd.to_numeric(out['long'], errors='coerce')
 
-        return sign * float(f'{s[:1]}.{s[1:]}')  # ex: 082600 -> 0.82600
+    return out
 
-    df[lat_col] = df[lat_col].apply(normalize_lat)
-    df[long_col] = df[long_col].apply(normalize_long)
-
-    return df
 
     
 
@@ -96,6 +104,8 @@ def to_int(df):
 
     return df
 
+
+
 def plot_crashes_per_month(df, ax=None, title=None):
     sns.countplot(x='mois', data=df, ax=ax)
     if ax:
@@ -108,6 +118,8 @@ def plot_crashes_per_month(df, ax=None, title=None):
         plt.ylabel('Number of Crashes')
         plt.show()
 
+
+
 def plot_crashes_by_lum(df):
 
     sns.countplot(x='lum', data=df)
@@ -115,6 +127,7 @@ def plot_crashes_by_lum(df):
     plt.xlabel('Light Condition Code')
     plt.ylabel('Count')
     plt.show()
+
 
 
 def plot_crashes_by_surface(df):
@@ -126,6 +139,7 @@ def plot_crashes_by_surface(df):
     plt.show()
 
 
+
 def plot_vehicles_distribution(df):
 
     sns.histplot(df['nb_vehicules'], bins=10, kde=False)
@@ -133,7 +147,6 @@ def plot_vehicles_distribution(df):
     plt.xlabel('Number of Vehicles')
     plt.ylabel('Count')
     plt.show()
-
 
 
 
@@ -152,9 +165,6 @@ def plot_accidents_heatmap_cote_a_cote(df, ax=None, title=None):
         plt.xlabel('Weekday')
         plt.ylabel('Hour of Day')
         plt.show()
-
-
-
 
 
 
@@ -200,7 +210,10 @@ def plot_pca_2D_3D(
         )
         pca_df = pd.concat([pca_df, csp_dummies], axis=1)
 
-    # --- Standardization ---
+        #taking into account or not the randomized csp
+
+
+    #standardazing the data
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(pca_df)
 
@@ -212,76 +225,59 @@ def plot_pca_2D_3D(
     print(pca.explained_variance_ratio_)
     print("Cumulative variance explained:")
     print(pca.explained_variance_ratio_.cumsum())
-
-    # PCA dataframe for visualization
+    
+    
+    #creating a pca dataframe for plotting
     pca_vis = pd.DataFrame(
         X_pca,
         columns=["PC1", "PC2", "PC3"],
         index=pca_df.index
     )
-
-    if csp:
-        pca_vis["csp"] = df.loc[pca_df.index, "csp_conducteur"]
-
-    # --- Plotting ---
-    fig = plt.figure(figsize=(16, 7))
-
-    # 2D PCA
-    ax1 = fig.add_subplot(1, 2, 1)
-    if csp:
-        sns.scatterplot(
-            data=pca_vis,
-            x="PC1", y="PC2",
-            hue="csp",
-            alpha=0.4,
-            s=35,
-            ax=ax1
-        )
-        ax1.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    else:
-        ax1.scatter(
-            pca_vis["PC1"], pca_vis["PC2"],
-            alpha=0.4, s=20
-        )
-
-    ax1.set_title("PCA – 2D Projection (PC1 vs PC2)")
-    ax1.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)")
-    ax1.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)")
-
-    # 3D PCA
-    ax2 = fig.add_subplot(1, 2, 2, projection="3d")
-
-    if csp:
-        csp_codes = pd.Categorical(pca_vis["csp"]).codes
-        ax2.scatter(
-            pca_vis["PC1"],
-            pca_vis["PC2"],
-            pca_vis["PC3"],
-            c=csp_codes,
-            cmap="tab10",
-            alpha=0.4,
-            s=30
-        )
-    else:
-        ax2.scatter(
-            pca_vis["PC1"],
-            pca_vis["PC2"],
-            pca_vis["PC3"],
-            alpha=0.4,
-            s=25
-        )
-
-    ax2.set_title("PCA – 3D Projection (PC1, PC2, PC3)")
-    ax2.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)")
-    ax2.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)")
-    ax2.set_zlabel(f"PC3 ({pca.explained_variance_ratio_[2]*100:.1f}%)")
-
+    
+    pca_vis["csp"] = df.loc[pca_df.index, "csp_conducteur"].values
+    
+    #2D PCA plot
+    plt.figure(figsize=(10, 7))
+    sns.scatterplot(
+        data=pca_vis,
+        x="PC1",
+        y="PC2",
+        hue="csp",
+        alpha=0.4,
+        s=40
+    )
+    
+    plt.title("PCA – 2D Projection (PC1 vs PC2)")
+    plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}% variance)")
+    plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}% variance)")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     plt.tight_layout()
+    plt.show()
+    
+    #3D PCA plot
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection="3d")
+    
+    csp_codes = pd.Categorical(pca_vis["csp"]).codes
+    
+    scatter = ax.scatter(
+        pca_vis["PC1"],
+        pca_vis["PC2"],
+        pca_vis["PC3"],
+        c=csp_codes,
+        cmap="tab10",
+        alpha=0.4,
+        s=35
+    )
+    
+    ax.set_title("PCA – 3D Projection (PC1, PC2, PC3)")
+    ax.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)")
+    ax.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)")
+    ax.set_zlabel(f"PC3 ({pca.explained_variance_ratio_[2]*100:.1f}%)")
+    
     plt.show()
 
     return pca, pca_df
-
-
 
 
     
@@ -364,67 +360,7 @@ def plot_correlation_circle(
 
 
 
-def pca_analysis(pca, pca_df, threshold=0.2):
-    """
-    Analyze a fitted PCA and return correlations, cos², and significant variables.
-
-    Parameters
-    ----------
-    pca : sklearn PCA object
-        Fitted PCA.
-    pca_df : pandas DataFrame
-        Original dataset used for PCA.
-    threshold : float, default=0.2
-        Threshold for sum of cos² in first 2 PCs to consider a variable significant.
-
-    Returns
-    -------
-    corr_df : pandas DataFrame
-        Correlation of each variable with each principal component.
-    cos2_df : pandas DataFrame
-        Squared correlations (quality of representation) of each variable.
-    significant_vars : list
-        List of variables whose sum of cos² across first 2 PCs >= threshold.
-    """
-    
-    # Ensure X matches the PCA input
-    X = pca_df.values
-    
-    # Loadings
-    loadings = pca.components_.T  # shape: (n_features, n_PCs)
-    
-    # Compute correlations: cor[i,j] = loading[i,j] * sqrt(explained_variance[j])
-    correlations = loadings * np.sqrt(pca.explained_variance_)
-    
-    # Convert to DataFrame
-    corr_df = pd.DataFrame(
-        correlations,
-        index=pca_df.columns,
-        columns=[f"PC{i+1}" for i in range(loadings.shape[1])]
-    )
-    
-    # Compute cos² (quality of representation)
-    cos2_df = corr_df**2
-    
-    # Sum of cos² across first 2 PCs
-    cos2_df['sum_PC1_PC2'] = cos2_df.iloc[:, [0, 1]].sum(axis=1)
-    
-    # Display results
-    print("Correlation of variables with PCs:")
-    print(corr_df.round(3))
-    print("\nCos² (quality of representation):")
-    print(cos2_df.round(3))
-    
-    # Identify significant variables
-    significant_vars = cos2_df[cos2_df['sum_PC1_PC2'] >= threshold].index.tolist()
-    
-    print(f"\nSignificant variables (sum cos² >= {threshold} for PC1 and PC2):")
-    print(significant_vars)
-    
-    return corr_df, cos2_df, significant_vars
-
-
-def plot_crashes_heatmap_cote_a_cote(df, ax=None, title = None):
+def plot_crashes_heatmap_cote_a_cote(df, ax=None, year=2024):
     # Filtrer sur les coordonnées (France métropolitaine)
     df = df[
         (df['long'] > -5) & (df['long'] <= 9.7) &
@@ -440,8 +376,5 @@ def plot_crashes_heatmap_cote_a_cote(df, ax=None, title = None):
     ax.scatter(x, y, s=4, c='red', alpha=0.03)
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
-    ax.set_title(title)
-    ax.set_xlim(-5.5, 9.7)
-    ax.set_ylim(41.0, 51.5)
-
-    #ax.set_aspect('equal', adjustable='box')
+    ax.set_title(f"Occurrences des accidents routiers en {year}")
+    ax.set_aspect('equal', adjustable='box')
